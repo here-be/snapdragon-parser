@@ -1,0 +1,48 @@
+{
+  "name": "snapdragon-parser",
+  "description": "The snapdragon parser as a standalone library.",
+  "version": "0.1.0",
+  "homepage": "https://github.com/jonschlinkert/snapdragon-parser",
+  "author": "Jon Schlinkert (https://github.com/jonschlinkert)",
+  "repository": "jonschlinkert/snapdragon-parser",
+  "bugs": {
+    "url": "https://github.com/jonschlinkert/snapdragon-parser/issues"
+  },
+  "license": "MIT",
+  "files": [
+    "index.js"
+  ],
+  "main": "index.js",
+  "engines": {
+    "node": ">=4"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "keywords": [
+    "compile",
+    "compiler",
+    "convert",
+    "parse",
+    "parser",
+    "render",
+    "snapdragon",
+    "transform"
+  ],
+  "dependencies": {
+    "@sellside/emitter": "file:/usr/local/lib/node_modules/@sellside/emitter",
+    "define-property": "^1.0.0",
+    "export-files": "^2.1.1",
+    "get-value": "^2.0.6",
+    "kind-of": "^6.0.1",
+    "snapdragon-lexer": "file:/usr/local/lib/node_modules/snapdragon-lexer",
+    "snapdragon-node": "file:/usr/local/lib/node_modules/snapdragon-node",
+    "snapdragon-stack": "file:/usr/local/lib/node_modules/snapdragon-stack",
+    "snapdragon-util": "file:/usr/local/lib/node_modules/snapdragon-util",
+    "union-value": "^1.0.0",
+    "use": "^3.0.0"
+  },
+  "devDependencies": {
+    "mocha": "^4.0.1"
+  }
+}
