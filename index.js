@@ -4,13 +4,12 @@
  * Module dependencies
  */
 
-const assert = require('assert');
 const Emitter = require('@sellside/emitter');
-const define = require('define-property');
 const Stack = require('snapdragon-stack');
 const Lexer = require('snapdragon-lexer');
-const util = require('snapdragon-util');
 const Node = require('snapdragon-node');
+const show = require('snapdragon-show');
+const util = require('snapdragon-util');
 const union = require('union-value');
 const typeOf = require('kind-of');
 const use = require('use');
@@ -19,8 +18,8 @@ const use = require('use');
  * Local dependencies
  */
 
-const ParserError = require('./lib/ParserError');
 const format = require('./lib/format');
+const utils = require('./lib/utils');
 
 /**
  * Create a new `Parser` with the given `input` and `options`.
@@ -64,6 +63,7 @@ class Parser extends Emitter {
   init(options) {
     this.lexer.init();
     this.stack = new this.Stack();
+    this.trash = [];
     this.bos = this.node({ type: 'bos', val: '' });
     this.eos = this.node({ type: 'eos', val: '' });
     this.ast = this.node({ type: this.options.type, errors: [] });
@@ -88,8 +88,7 @@ class Parser extends Emitter {
    * @api public
    */
 
-  error(code, ...args) {
-    const err = new ParserError(code, ...args);
+  error(err) {
     this.ast.errors.push(err);
     if (this.hasListeners('error')) {
       this.emit('error', err);
@@ -158,8 +157,8 @@ class Parser extends Emitter {
    * @api public
    */
 
-  node(...args) {
-    const node = new this.Node(...args);
+  node(type, val) {
+    const node = new this.Node(type, val);
     this.emit('node', node);
     return node;
   }
@@ -194,15 +193,7 @@ class Parser extends Emitter {
 
   set(type, fn) {
     union(this, 'types', type);
-    const self = this;
-    this.handlers[type] = (...args) => {
-      let handler = fn;
-      if (!handler || handler.wrapped !== true) {
-        handler = this.wrap(type, handler);;
-      }
-      return handler.apply(self, args);
-    };
-    // this.handlers[type] = this.wrap(type, fn);
+    this.handlers[type] = this.wrap(type, fn);
     return this;
   }
 
@@ -219,9 +210,10 @@ class Parser extends Emitter {
    */
 
   get(type) {
-    const fn = this.handlers[type];
+    const fn = this.handlers[type] || this.handler.default;
     if (typeof fn !== 'function') {
-      return this.error('NO_HANDLER', type);
+      this.error(new TypeError(`expected handler to be a function: "${type}"`));
+      return;
     }
     return fn;
   }
@@ -250,7 +242,7 @@ class Parser extends Emitter {
     const fn = (tok) => {
       try {
         let node = handler.call(this, tok);
-        if (node && !this.isNode(node)) {
+        if (typeOf(node) === 'object' && !this.isNode(node)) {
           node = this.node(node);
         }
         if (node && !node.type) {
@@ -264,7 +256,7 @@ class Parser extends Emitter {
       } catch (err) {
 
         try {
-          err.message += '\n' + format.showPosition(this, tok);
+          err.message += '\n' + show(this, tok);
           return this.error(err);
         } catch (ex) {
           throw err;
@@ -306,28 +298,44 @@ class Parser extends Emitter {
     return this.set(type, parserFn);
   }
 
-  isUnclosedBlock(node) {
-    if (typeof this.options.isUnclosedBlock === 'function') {
-      return this.options.isUnclosedBlock.apply(this, arguments);
-    }
-
-    let nodes = node.nodes;
-    let child = nodes ? nodes[nodes.length - 1] : null;
-    return node.nodes && !this.isClose(child, node);
+  isBlock(node) {
+    return Array.isArray(node.nodes) && this.isBlockOpen(node.nodes[0]);
   }
 
-  isOpenNode(node, parent = this.prev) {
-    if (typeof this.options.isOpenNode === 'function') {
-      return this.options.isOpenNode.apply(this, arguments);
-    }
-    return parent.isOpen ? parent.isOpen(node) : false;
+  isBlockOpen(node) {
+    return node.type.length >= 6 && node.type.slice(-5) === '.open';
   }
 
-  isCloseNode(node, parent = this.prev) {
-    if (typeof this.options.isCloseNode === 'function') {
-      return this.options.isCloseNode.apply(this, arguments);
-    }
-    return parent.isClose ? parent.isClose(node) : false;
+  isBlockClose(node) {
+    return node.type.length >= 7 && node.type.slice(-6) === '.close';
+  }
+
+  isClosedBlock(node) {
+    return this.isBlock(node) && this.isBlockClose(util.last(node.nodes), node);
+  }
+
+  isOpenBlock(node) {
+    return this.isBlock(node) && !this.isBlockClose(util.last(node.nodes), node);
+  }
+
+  isScopeOpen(node) {
+    return this.isBlock(node) && !this.scopes.isInside('bracket');
+  }
+
+  isScopeClose(block) {
+    return block === this.scope.node;
+  }
+
+  isInside(type) {
+    return this.isInsideScope(type) || this.isInsideBlock(type);
+  }
+
+  isInsideBlock(type) {
+    return this.state.isInside(type);
+  }
+
+  isInsideScope(type) {
+    return this.scopes.isInside(type);
   }
 
   /**
@@ -345,55 +353,74 @@ class Parser extends Emitter {
    * @api public
    */
 
-  push(node, parent = this.prev) {
+  allocate(node) {
     if (!node) return;
-    if (!this.isNode(node)) {
-      throw new Error('expected node to be an instance of Node');
+    this.block.push(node);
+
+    if (this.isOpenBlock(node)) {
+      this.push(node);
+      return node;
     }
 
-    this.emit('push', node);
-    parent.push(node);
-
-    if (node.nodes && !node.isClose(node.lastChild)) {
-      this.stack.push(node);
-
-    } else if (parent.isClose(node)) {
-      this.pop(parent.type);
+    if (this.isBlockClose(node)) {
+      this.pop();
+      return node;
     }
-
-    return node;
   }
 
-  /**
-   * Pop a node from the stack.
-   *
-   * ```js
-   * parser.pop();
-   * ```
-   * @name .pop
-   * @emits pop
-   * @param {undefined} Takes no arguments
-   * @returns {Object} Returns the popped node.
-   * @api public
-   */
+  push(block) {
+    if (!block) return;
+    this.state.push(block);
+    this.scopes.handle(block);
+    return block;
+  }
 
   pop() {
-    this.current = null;
-    const node = this.stack.pop();
-    this.emit('pop', node);
-    return node;
+    const block = this.state.pop();
+    this.scopes.handle(block);
+    return block;
   }
+
+  // push(block) {
+  //   if (!block) return;
+  //   this.state.push(block);
+  //   if (this.isScopeOpen(block)) {
+  //     this.scopes.push(block);
+  //   } else {
+  //     this.scope.chain.push(block);
+  //   }
+  //   return block;
+  // }
+
+  // pop() {
+  //   const state = this.state.pop();
+  //   this.trash.push(state);
+  //   if (this.isScopeClose(this.prevState)) {
+  //     this.scopes.pop();
+  //   } else {
+  //     this.scope.chain.pop();
+  //   }
+  //   return state;
+  // }
 
   /**
    * Get the previously stored node from `parser.state.stack`
    */
 
-  get prev() {
-    return this.current || this.stack.prev;
+  get block() {
+    return this.current;
   }
 
-  get last() {
-    return this.stack.last;
+  get current() {
+    return this.stack.current();
+  }
+
+  get prev() {
+    return this.stack.prev();
+  }
+
+  get lastChild() {
+    return this.stack.lastChild;
   }
 
   /**
@@ -435,30 +462,40 @@ class Parser extends Emitter {
     }
 
     if (typeof input !== 'string') {
-      return this.error('INVALID_INPUT', input);
+      return this.error(new TypeError('expected input to be a string'));
     }
     if (this.types.length === 0) {
-      return this.error('NO_HANDLERS');
+      return this.error(new Error('no parser handlers are registered'));
     }
 
     this.init();
     this.string = this.input = input;
-    this.push(this.bos);
-    while (this.input || this.lexer.queue.length) this.next();
-    this.push(this.eos);
-    this.fail();
 
-    // add non-enumerable parser reference to AST
-    define(this.ast, 'parser', this);
+    this.push(this.bos);
+    while (!this.lexer.eos()) this.next();
+    this.push(this.eos);
+
+    this.fail();
     return this.ast;
   }
 
-  concat(node, nodes) {
-    for (let i = 1; i < nodes.length - 1; i++) {
-      const child = nodes[i];
-      this.emit('node', child);
-      node.push(child);
+  /**
+   * Concat nodes from another AST to `node.nodes`.
+   *
+   * @param {Object} `node`
+   * @param {Object} `ast`
+   * @return {Object}
+   * @api public
+   */
+
+  concat(node, ast) {
+    for (let child of ast.nodes) {
+      if (child.type !== 'bos' && child.type !== 'eos') {
+        this.emit('node', child);
+        node.push(child);
+      }
     }
+    return node;
   }
 
   /**
@@ -468,7 +505,7 @@ class Parser extends Emitter {
   fail() {
     let node = this.stack.pop();
     if (node.type !== 'root') {
-      throw new Error(`unclosed: "${node.type}"`);
+      this.error(new SyntaxError(`unclosed: "${node.type}"`));
     }
   }
 

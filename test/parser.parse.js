@@ -16,7 +16,7 @@ describe('parser.parse', function() {
   it('should throw when invalid args are passed to parse', function() {
     assert.throws(function() {
       parser.parse();
-    }, /Expected/);
+    }, /expected/i);
   });
 
   it('should add unparsed original string to parser.string', function() {

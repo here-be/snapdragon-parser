@@ -40,35 +40,17 @@ describe('parser errors', function() {
     it('should throw a ParserError when a handler is not registered', function() {
       throws(function() {
         parser.get('foo');
-      }, function(err) {
-        return err.name === 'ParserError';
-      }, 'expected a ParserError');
-    });
-
-    it('should add the error code to the error', function() {
-      throws(function() {
-        parser.get('foo');
-      }, function(err) {
-        return err.code === 'NO_HANDLER';
-      }, 'expected error code to be NO_HANDLER');
+      }, /expected handler/);
     });
   });
 
   describe('parser.parse', function() {
-    it('should throw a ParserError when no handlers are registered', function() {
+    it('should throw an error when no handlers are registered', function() {
       throws(function() {
         parser.parse('foo');
       }, function(err) {
-        return err.name === 'ParserError';
-      }, 'expected a ParserError');
-    });
-
-    it('should add the error code to the error', function() {
-      throws(function() {
-        parser.parse('foo');
-      }, function(err) {
-        return err.code === 'NO_HANDLERS';
-      }, 'expected error code to be NO_HANDLERS');
+        return err.name === 'Error';
+      }, 'expected a Error');
     });
   });
 

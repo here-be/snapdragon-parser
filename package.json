@@ -37,6 +37,7 @@
     "kind-of": "^6.0.1",
     "snapdragon-lexer": "file:/usr/local/lib/node_modules/snapdragon-lexer",
     "snapdragon-node": "file:/usr/local/lib/node_modules/snapdragon-node",
+    "snapdragon-show": "file:/usr/local/lib/node_modules/snapdragon-show",
     "snapdragon-stack": "file:/usr/local/lib/node_modules/snapdragon-stack",
     "snapdragon-util": "file:/usr/local/lib/node_modules/snapdragon-util",
     "union-value": "^1.0.0",
