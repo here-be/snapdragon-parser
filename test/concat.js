@@ -14,8 +14,8 @@ describe('parser.concat()', function() {
     parser.capture('slash', /^\//);
     parser.capture('text', /^\w+/);
 
-    const newParser = parser.create();
-    const ast = newParser.parse('x/y');
+    const p2 = parser.create();
+    const ast = p2.parse('x/y');
     parser.concat(parser.ast, ast);
 
     assert.equal(parser.ast.nodes.length, 3);

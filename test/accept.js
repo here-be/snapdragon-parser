@@ -21,7 +21,7 @@ describe('parser.accept()', function() {
       return node;
     });
 
-    assert.doesNotThrow(() => parser.parse('{/,b}'), /text/);
+    assert.doesNotThrow(() => parser.parse('{/,b}'));
     assert.equal(parser.ast.nodes[1].nodes[1].type, 'slash');
     assert.equal(parser.ast.nodes[1].nodes[2].type, 'text');
   });
@@ -34,7 +34,7 @@ describe('parser.accept()', function() {
       return node;
     });
 
-    assert.doesNotThrow(() => parser.parse('{/,b}'), /text/);
+    assert.doesNotThrow(() => parser.parse('{/,b}'));
     assert.notEqual(parser.ast.nodes[1].nodes[1].type, 'foo');
     assert.notEqual(parser.ast.nodes[1].nodes[2].type, 'bar');
   });

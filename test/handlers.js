@@ -25,8 +25,8 @@ describe('parser handlers', function() {
       parser.set('foo', function() {});
       parser.set('bar', function() {});
 
-      assert.equal(typeof parser.handlers.foo, 'function');
-      assert.equal(typeof parser.handlers.bar, 'function');
+      assert.equal(typeof parser.handlers.get('foo'), 'function');
+      assert.equal(typeof parser.handlers.get('bar'), 'function');
     });
 
     it('should be chainable:', function() {
@@ -35,8 +35,7 @@ describe('parser handlers', function() {
         .set('slash', function() {})
         .set('dot', function() {})
 
-      var keys = Object.keys(parser.handlers);
-      assert.strictEqual(keys.length, 3);
+      assert.strictEqual(parser.handlers.size, 3);
     });
 
     it('should expose named parsers to handler:', function() {

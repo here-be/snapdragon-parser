@@ -21,13 +21,8 @@
     "test": "nyc mocha"
   },
   "dependencies": {
-    "define-property": "^2.0.2",
-    "export-files": "^2.1.1",
-    "get-value": "^3.0.1",
-    "kind-of": "^6.0.2",
     "snapdragon-lexer": "file:../lexer",
-    "snapdragon-node": "file:../node",
-    "snapdragon-util": "^5.0.1"
+    "snapdragon-node": "file:../node"
   },
   "devDependencies": {
     "gulp-format-md": "^1.0.0",
