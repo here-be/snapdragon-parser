@@ -7,7 +7,7 @@ var Parser = require('..');
 var parser;
 var lexer;
 
-describe('parser.capture', function() {
+describe('parser.capture()', function() {
   beforeEach(function() {
     parser = new Parser();
   });
@@ -28,6 +28,7 @@ describe('parser.capture', function() {
     });
 
     parser.parse('a/b');
-    assert.equal(parser.string, 'a/b');
+    assert.equal(parser.input, 'a/b');
+    assert.equal(parser.string, '');
   });
 });

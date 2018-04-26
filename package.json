@@ -2,22 +2,37 @@
   "name": "snapdragon-parser",
   "description": "The snapdragon parser as a standalone library.",
   "version": "0.1.0",
-  "homepage": "https://github.com/jonschlinkert/snapdragon-parser",
+  "homepage": "https://github.com/here-be/snapdragon-parser",
   "author": "Jon Schlinkert (https://github.com/jonschlinkert)",
-  "repository": "jonschlinkert/snapdragon-parser",
+  "repository": "here-be/snapdragon-parser",
   "bugs": {
-    "url": "https://github.com/jonschlinkert/snapdragon-parser/issues"
+    "url": "https://github.com/here-be/snapdragon-parser/issues"
   },
   "license": "MIT",
   "files": [
-    "index.js"
+    "index.js",
+    "lib"
   ],
   "main": "index.js",
   "engines": {
     "node": ">=4"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "nyc mocha"
+  },
+  "dependencies": {
+    "define-property": "^2.0.2",
+    "export-files": "^2.1.1",
+    "get-value": "^3.0.1",
+    "kind-of": "^6.0.2",
+    "snapdragon-lexer": "file:../lexer",
+    "snapdragon-node": "file:../node",
+    "snapdragon-util": "^5.0.1"
+  },
+  "devDependencies": {
+    "gulp-format-md": "^1.0.0",
+    "mocha": "^3.5.3",
+    "nyc": "^11.7.1"
   },
   "keywords": [
     "compile",
@@ -29,21 +44,31 @@
     "snapdragon",
     "transform"
   ],
-  "dependencies": {
-    "@sellside/emitter": "file:/usr/local/lib/node_modules/@sellside/emitter",
-    "define-property": "^1.0.0",
-    "export-files": "^2.1.1",
-    "get-value": "^2.0.6",
-    "kind-of": "^6.0.1",
-    "snapdragon-lexer": "file:/usr/local/lib/node_modules/snapdragon-lexer",
-    "snapdragon-node": "file:/usr/local/lib/node_modules/snapdragon-node",
-    "snapdragon-show": "file:/usr/local/lib/node_modules/snapdragon-show",
-    "snapdragon-stack": "file:/usr/local/lib/node_modules/snapdragon-stack",
-    "snapdragon-util": "file:/usr/local/lib/node_modules/snapdragon-util",
-    "union-value": "^1.0.0",
-    "use": "^3.0.0"
+  "nyc": {
+    "reporter": [
+      "lcov",
+      "text-summary"
+    ]
   },
-  "devDependencies": {
-    "mocha": "^4.0.1"
+  "verb": {
+    "toc": "collapsible",
+    "layout": "default",
+    "tasks": [
+      "readme"
+    ],
+    "related": {
+      "list": [
+        "snapdragon-lexer",
+        "snapdragon-token",
+        "snapdragon-node",
+        "snapdragon-position"
+      ]
+    },
+    "plugins": [
+      "gulp-format-md"
+    ],
+    "lint": {
+      "reflinks": true
+    }
   }
 }

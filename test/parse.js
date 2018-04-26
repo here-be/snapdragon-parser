@@ -4,10 +4,10 @@ require('mocha');
 const assert = require('assert');
 const Lexer = require('snapdragon-lexer');
 const Parser = require('..');
-let parser;
 let lexer;
+let parser;
 
-describe('parser.parse', function() {
+describe('parser.parse()', function() {
   beforeEach(function() {
     lexer = new Lexer();
     parser = new Parser({lexer: lexer});
@@ -19,22 +19,26 @@ describe('parser.parse', function() {
     }, /expected/i);
   });
 
-  it('should add unparsed original string to parser.string', function() {
-    parser.capture('all', /^.+/, function(tok) {
-      return this.node(tok);
-    });
+  it('should add unparsed original string to parser.input', function() {
+    parser.capture('all', /^.+/, tok => parser.node(tok));
 
     parser.parse('a/b');
-    assert.equal(parser.string, 'a/b');
+    assert.equal(parser.input, 'a/b');
   });
 
   it('should add parsed input to `parser.parsed`', function() {
-    parser.capture('all', /^.+/, function(tok) {
-      return this.node(tok);
-    });
+    parser.capture('text', /^\w+/);
+    parser.parse('a');
+    assert.equal(parser.parsed, 'a');
+  });
+
+  it('should use default handler when specific one is not registered', function() {
+    parser.lexer.capture('text', /^\w+/);
+    parser.lexer.capture('slash', /^\//);
+    parser.capture('default', tok => parser.node(tok));
 
     parser.parse('a/b');
-    assert.equal(parser.string, 'a/b');
+    assert.equal(parser.parsed, 'a/b');
   });
 
   it('should update parser.input as input is parsed', function() {
@@ -43,8 +47,8 @@ describe('parser.parse', function() {
     });
 
     parser.parse('a/b');
-    assert.equal(parser.string, 'a/b');
-    assert.equal(parser.input, '');
+    assert.equal(parser.input, 'a/b');
+    assert.equal(parser.string, '');
   });
 
   it('should throw an error when a closing delimiter is missing', function() {
@@ -57,9 +61,6 @@ describe('parser.parse', function() {
       .capture('text', (tok) => parser.node(tok))
       .capture('brace.open', function(tok) {
         var node = this.node({type: 'brace', nodes: []});
-        // node.expects = function(n) {
-        //   return n.type === 'rbrace'
-        // };
         node.push(this.node(tok));
         return node;
       })
@@ -73,21 +74,16 @@ describe('parser.parse', function() {
   });
 
   it('should close when node.isClose matches a node', function() {
-    lexer
-      .capture('text', /^[^{}]+/)
-      .capture('lbrace', /^\{/)
-      .capture('rbrace', /^\}/);
-
     parser
-      .capture('text')
-      .capture('lbrace', function(tok) {
-        return this.node({
+      .capture('text', /^[^{}]+/)
+      .capture('lbrace', /^\{/, function(tok) {
+        return {
           type: 'brace',
           isClose: node => node.type = 'rbrace',
           nodes: [tok]
-        });
+        };
       })
-      .capture('rbrace');
+      .capture('rbrace', /^\}/);
 
     assert.doesNotThrow(function() {
       parser.parse('{a,b}');

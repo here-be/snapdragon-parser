@@ -37,20 +37,14 @@ describe('parser errors', function() {
   });
 
   describe('parser.get', function() {
-    it('should throw a ParserError when a handler is not registered', function() {
-      throws(function() {
-        parser.get('foo');
-      }, /expected handler/);
+    it('should throw an error when a handler is not registered', function() {
+      assert.throws(() => parser.get('foo'), /expected handler "foo" to be a function/);
     });
   });
 
   describe('parser.parse', function() {
-    it('should throw an error when no handlers are registered', function() {
-      throws(function() {
-        parser.parse('foo');
-      }, function(err) {
-        return err.name === 'Error';
-      }, 'expected a Error');
+    it('should throw an error when no handler is registered for the given string', function() {
+      assert.throws(() => parser.parse('foo'), /unmatched input: "foo"/);
     });
   });
 

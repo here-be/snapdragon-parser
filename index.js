@@ -4,21 +4,19 @@
  * Module dependencies
  */
 
-const Emitter = require('@sellside/emitter');
-const Stack = require('snapdragon-stack');
+const assert = require('assert');
+const Emitter = require('events');
 const Lexer = require('snapdragon-lexer');
 const Node = require('snapdragon-node');
-const show = require('snapdragon-show');
 const util = require('snapdragon-util');
-const union = require('union-value');
-const typeOf = require('kind-of');
-const use = require('use');
 
 /**
  * Local dependencies
  */
 
-const format = require('./lib/format');
+const Scopes = require('./lib/scopes');
+const Stack = require('./lib/stack');
+const State = require('./lib/state');
 const utils = require('./lib/utils');
 
 /**
@@ -35,132 +33,111 @@ const utils = require('./lib/utils');
  */
 
 class Parser extends Emitter {
-  constructor(options) {
+  constructor(input, options = {}) {
     super();
-    this.isParser = true;
-    this.options = Object.assign({type: 'root'}, options);
 
-    this.Stack = this.options.Stack || Stack;
+    if (typeof input !== 'string') {
+      options = input;
+      input = '';
+    }
+
+    if (Parser.isParser(options)) {
+      return this.create(options.options, options);
+    }
+
+    this.isParser = true;
+    this.options = Object.assign({ type: 'root' }, options);
     this.Lexer = this.options.Lexer || Lexer;
     this.lexer = this.options.lexer || new this.Lexer(this.options);
+
+    // this.contexts = [];
+    this.Scopes = this.options.Scopes || Scopes;
+    this.Stack = this.options.Stack || Stack;
+    this.State = this.options.State || State;
     this.Node = this.options.Node || Node;
+
+    this.Scopes = this.Scopes.bind(null, this.Stack);
+    this.State = this.State.bind(null, this.Stack);
     this.node = this.node.bind(this);
 
-    this.handlers = {};
-    this.types = [];
-    this.init();
-    use(this);
+    this.handlers = new Map();
+    this.types = new Set();
+
+    sync('string', this, this.lexer);
+    sync('input', this, this.lexer);
+    this.init(input);
   }
 
   /**
-   * Initialize
-   *
-   * @param {[type]} options
-   * @return {[type]}
-   * @api public
+   * Initialize parser state properties
    */
 
-  init(options) {
-    this.lexer.init();
-    this.stack = new this.Stack();
-    this.trash = [];
-    this.bos = this.node({ type: 'bos', val: '' });
-    this.eos = this.node({ type: 'eos', val: '' });
-    this.ast = this.node({ type: this.options.type, errors: [] });
-    this.stack.push(this.ast);
+  init(input) {
+    this.lexer.init(input);
+    // this.use(scopes());
+    // this.stack = new this.Stack();
+    // this.scopes = new this.State();
+    this.scopes = new this.Scopes();
+    this.state = new this.State();
+    this.bos = this.node({ type: 'bos', value: '' });
+    this.eos = this.node({ type: 'eos', value: '' });
+    this.ast = this.node({ type: this.options.type, nodes: [] });
+    this.scopes.push(this.node({type: 'root'}));
+    this.state.push(this.ast);
     this.emit('init');
   }
 
   /**
-   * Throw a formatted error message with details including the cursor position.
-   *
-   * ```js
-   * parser.set('foo', function(tok) {
-   *   if (tok.val !== 'foo') {
-   *     throw this.error('expected token.val to be "foo"', tok);
-   *   }
-   * });
-   * ```
-   * @name .error
-   * @param {String} `msg` Message to use in the Error.
-   * @param {Object} `node`
-   * @return {undefined}
-   * @api public
+   * Push a `parser` onto the contexts stack, or pop and return a parser.
    */
 
-  error(err) {
-    this.ast.errors.push(err);
-    if (this.hasListeners('error')) {
-      this.emit('error', err);
+  context(parser) {
+    if (parser) {
+      this.contexts.push(parser);
     } else {
-      throw err;
+      return this.contexts.pop();
     }
   }
 
   /**
-   * Get and set the input string on both the parser and `parser.lexer`
-   * instances, to ensure the string is always correct.
-   */
-
-  set input(input) {
-    this.lexer.input = input;
-  }
-  get input() {
-    return this.lexer.input;
-  }
-  get consumed() {
-    return this.lexer.consumed;
-  }
-
-  /**
-   * Proxy lexer methods
-   */
-
-  enqueue() {
-    return this.lexer.enqueue();
-  }
-
-  dequeue() {
-    return this.lexer.dequeue();
-  }
-
-  lookbehind(n) {
-    return this.lexer.lookbehind(n);
-  }
-
-  lookahead(n) {
-    return this.lexer.lookahead(n);
-  }
-
-  peek() {
-    return this.lexer.peek();
-  }
-
-  skip(n) {
-    return this.lexer.skip(n);
-  }
-
-  /**
-   * Create a new [Node](#node) with the given `val` and `type`.
+   * Create a new [Node](#node) with the given `value` and `type`.
    *
    * ```js
-   * let node = parser.node('/', 'slash');
-   * // or as an object
-   * let node = parser.node({type: 'slash', val: '/'});
+   * const node = parser.node({type: 'slash', value: '/'});
    * // sugar for
-   * let node = new parser.Node({type: 'slash', val: '/'});
+   * const Node = require('snapdragon-node');
+   * const node = Node({type: 'slash', value: '/'});
    * ```
    * @name .node
-   * @param {Object|String} `type` Object or the value to assign to `node.type`
-   * @param {String} `val` The value to assign to `node.val`
+   * @param {Object} `node` The object to use to create a node
    * @return {Object} returns the created [Node](#node) instance.
    * @api public
    */
 
-  node(type, val) {
-    const node = new this.Node(type, val);
+  node(node, value) {
+    assert(node, 'expected a string or object');
+    if (typeof node === 'string') {
+      return this.node({type: node, value});
+    }
+    if (!this.isNode(node)) {
+      node = new this.Node(node);
+    }
+    if (Array.isArray(node.nodes)) {
+      this.nodes(node.nodes, node);
+    }
     this.emit('node', node);
     return node;
+  }
+
+  nodes(nodes, parent) {
+    assert(Array.isArray(nodes), 'expected an array of nodes');
+    assert(this.isNode(parent), 'expected parent to be a node');
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i] = this.node(nodes[i]);
+      node.parent = parent;
+      node.index = i;
+    }
+    return nodes;
   }
 
   /**
@@ -191,87 +168,116 @@ class Parser extends Emitter {
    * @api public
    */
 
-  set(type, fn) {
-    union(this, 'types', type);
-    this.handlers[type] = this.wrap(type, fn);
-    return this;
-  }
+  set(type, handler) {
+    assert.equal(typeof handler, 'function', 'expected a function');
+    assert.equal(typeof type, 'string', 'expected a string');
 
-  /**
-   * Get the registered handler of the given `type`.
-   *
-   * ```js
-   * const fn = parser.get('slash');
-   * ```
-   * @name .get
-   * @param {String} `type`
-   * @returns {Function} Returns the handler function, or throws an error if not registered.
-   * @api public
-   */
-
-  get(type) {
-    const fn = this.handlers[type] || this.handler.default;
-    if (typeof fn !== 'function') {
-      this.error(new TypeError(`expected handler to be a function: "${type}"`));
-      return;
-    }
-    return fn;
-  }
-
-  /**
-   * Wrap a handler to ensure that returned objects are nodes with
-   * the `node.type` value set. Also sets the `type` value on `fn.type`
-   * property for easier debugging.
-   *
-   * @param {String} `type`
-   * @param {Function} `handler`
-   * @return {Function} Returns a wrapped function.
-   * @api private
-   */
-
-  wrap(type, handler) {
     // if it's a noop, just return the token
     if (typeof handler !== 'function') {
       handler = tok => tok;
     }
 
-    if (handler.wrapped === true) {
-      return handler;
-    }
+    if (handler.fn) return handler;
 
-    const fn = (tok) => {
-      try {
-        let node = handler.call(this, tok);
-        if (typeOf(node) === 'object' && !this.isNode(node)) {
-          node = this.node(node);
-        }
-        if (node && !node.type) {
-          node.type = type;
-        }
-        if (node && node.type) {
-          this.emit('handled', node);
-          this.emit(node.type, node);
-          return node;
-        }
-      } catch (err) {
+    const wrapped = tok => {
+      let node = handler.call(this, tok);
+      if (typeOf(node) === 'object' && !this.isNode(node)) {
+        node = this.node(node);
+      }
 
-        try {
-          err.message += '\n' + show(this, tok);
-          return this.error(err);
-        } catch (ex) {
-          throw err;
-        }
+      if (this.isNode(node) && !node.type) {
+        node.type = type;
+      }
+
+      if (this.isNode(node) && node.type) {
+        this.emit('handled', node);
+        this.emit(node.type, node);
+        return node;
       }
     };
 
-    fn.wrapped = true;
-    fn.type = type;
+    wrapped.fn = handler;
 
-    Object.setPrototypeOf(fn, handler);
-    if (handler.prototype) {
-      fn.prototype = handler.prototype;
+    if (handler.name) {
+      Reflect.defineProperty(wrapped, 'name', { value: handler.name });
     }
-    return fn;
+
+    this.handlers.set(type, wrapped);
+    if (!this.types.has(type)) {
+      this.types.add(type);
+    }
+    return this;
+  }
+
+  /**
+   * Get a registered handler function.
+   *
+   * ```js
+   * handlers.set('star', function() {
+   *   // do parser, lexer, or compiler stuff
+   * });
+   * const star = handlers.get('star');
+   * ```
+   * @name .get
+   * @param {String} `type`
+   * @param {Function} `fn` The handler function to register.
+   * @api public
+   */
+
+  get(type) {
+    const handler = this.handlers.get(type) || this.handlers.get('default');
+    assert.equal(typeof handler, 'function', `expected handler "${type}" to be a function`);
+    return handler;
+  }
+
+  has(type) {
+    return this.handlers.has(type);
+  }
+
+  /**
+   * Get the previous node from the state
+   */
+
+  get scope() {
+    return this.scopes.current();
+  }
+
+  /**
+   * Get the previous node from the state
+   */
+
+  current() {
+    return this.state.current();
+  }
+
+  /**
+   * Get the previous node from the state
+   */
+
+  prev() {
+    return this.state.current();
+  }
+
+  /**
+   * Get the last child node of the current node on the state
+   */
+
+  last() {
+    let prev = this.prev() || this.ast;
+
+    while (prev && prev.nodes && prev.nodes.length) {
+      prev = prev.nodes[prev.nodes.length - 1];
+    }
+
+    return prev;
+  }
+
+  /**
+   * Proxy lexer methods
+   */
+
+  peek() {
+    return this.lexer.peek();
   }
 
   /**
@@ -290,60 +296,53 @@ class Parser extends Emitter {
     if (!isRegex(regex)) {
       return this.set(type, regex);
     }
+
     if (typeof parserFn === 'undefined') {
       parserFn = lexerFn;
       lexerFn = null;
     }
+
     this.lexer.capture(type, regex, lexerFn);
     return this.set(type, parserFn);
   }
 
-  isBlock(node) {
-    return Array.isArray(node.nodes) && this.isBlockOpen(node.nodes[0]);
-  }
-
-  isBlockOpen(node) {
-    return node.type.length >= 6 && node.type.slice(-5) === '.open';
-  }
-
-  isBlockClose(node) {
-    return node.type.length >= 7 && node.type.slice(-6) === '.close';
-  }
-
-  isClosedBlock(node) {
-    return this.isBlock(node) && this.isBlockClose(util.last(node.nodes), node);
-  }
-
-  isOpenBlock(node) {
-    return this.isBlock(node) && !this.isBlockClose(util.last(node.nodes), node);
-  }
-
-  isScopeOpen(node) {
-    return this.isBlock(node) && !this.scopes.isInside('bracket');
-  }
-
-  isScopeClose(block) {
-    return block === this.scope.node;
-  }
-
   isInside(type) {
-    return this.isInsideScope(type) || this.isInsideBlock(type);
-  }
-
-  isInsideBlock(type) {
     return this.state.isInside(type);
   }
 
-  isInsideScope(type) {
-    return this.scopes.isInside(type);
+  isBlock(node) {
+    return Array.isArray(node.nodes) && node.nodes.length > 0;
+  }
+
+  isBlockOpen(node, prev = this.prev()) {
+    assert(this.isNode(node), 'expected a node');
+    if (isFunction(prev.isOpen) && prev.isOpen(node)) return true;
+    if (isFunction(node.isOpen) && !node.nodes && node.isOpen()) return true;
+    return node.type.length >= 6 && node.type.slice(-4) === 'open';
+  }
+
+  isBlockClose(node, prev = this.prev()) {
+    assert(this.isNode(node), 'expected a node');
+    if (isFunction(prev.isClose) && prev.isClose(node)) return true;
+    if (isFunction(node.isClose) && !node.nodes && node.isClose()) return true;
+    return node.type.length >= 7 && node.type.slice(-5) === 'close';
+  }
+
+  isClosedBlock(node) {
+    return this.isBlock(node) && this.isBlockClose(node.last, node);
+  }
+
+  isOpenBlock(node) {
+    return this.isBlock(node) && !this.isBlockClose(node.last, node);
   }
 
   /**
-   * Push a node onto the stack for the given `type`.
+   * Push a node onto the `nodes` array of the "current" node
+   * on the `state.stack`.
    *
    * ```js
-   * parser.set('all', function(tok) {
-   *   this.push(this.node(tok));
+   * parser.set('default', function(tok) {
+   *   return this.push(this.node(tok));
    * });
    * ```
    * @name .push
@@ -353,33 +352,86 @@ class Parser extends Emitter {
    * @api public
    */
 
-  allocate(node) {
+  // push(node) {
+  //   if (!node) return;
+
+  //   // set the current "scope" on the node
+  //   define(node, 'scope', this.scope);
+  //   this.scope.push(node);
+
+  //   // emit "push"
+  //   this.emit('push', node);
+
+  //   // return if "node.skip" is true. this is useful when custom code is used
+  //   // to handle
+  //   if (node.skip === true) {
+  //     return node;
+  //   }
+
+  //   const prev = this.prev();
+  //   prev.push(node);
+
+  //   if (node.type === 'eos') {
+  //     return node;
+  //   }
+
+  //   if (this.isBlockClose(node)) {
+  //     this.pop();
+
+  //     if (!prev.isClose(node)) {
+  //       this.error(`expected a closing ${prev.type}, but received: ` + node.value);
+  //     }
+  //   }
+
+  //   if (node.nodes && node.nodes.length === 1) {
+  //     this.state.push(node);
+  //   }
+  //   return node;
+  // }
+
+  push(node) {
     if (!node) return;
-    this.block.push(node);
-
-    if (this.isOpenBlock(node)) {
-      this.push(node);
-      return node;
+    if (isObject(node) && node.type && !this.isNode(node)) {
+      node = this.node(node);
     }
 
-    if (this.isBlockClose(node)) {
-      this.pop();
-      return node;
+    // set the current "scope" on the node
+    define(node, 'scope', this.scope);
+    this.scope.push(node);
+    this.emit('push', node);
+
+    const prev = this.prev();
+
+    // allow users to do this with custom code in handlers
+    if (node.skip !== true) {
+      if (this.isBlock(node) && this.isBlockOpen(node.nodes[0])) {
+        this.state.push(node);
+      }
+
+      if (this.isBlockClose(node)) {
+        this.pop(node);
+      }
     }
+
+    prev.push(node);
+    return node;
   }
 
-  push(block) {
-    if (!block) return;
-    this.state.push(block);
-    this.scopes.handle(block);
-    return block;
-  }
-
-  pop() {
+  pop(node) {
     const block = this.state.pop();
-    this.scopes.handle(block);
-    return block;
+    assert(block && Array.isArray(block.nodes), 'expected a block node');
+
+    if (node && !block.isClose(node)) {
+      this.error(`expected "${block.type}.close" node, received: "${node.type}"`);
+    }
   }
+
+  // push(block) {
+  //   if (!block) return;
+  //   this.state.push(block);
+  //   this.scopes.handle(block);
+  //   return block;
+  // }
 
   // push(block) {
   //   if (!block) return;
@@ -389,6 +441,12 @@ class Parser extends Emitter {
   //   } else {
   //     this.scope.chain.push(block);
   //   }
+  //   return block;
+  // }
+
+  // pop() {
+  //   const block = this.state.pop();
+  //   this.scopes.handle(block);
   //   return block;
   // }
 
@@ -404,26 +462,6 @@ class Parser extends Emitter {
   // }
 
   /**
-   * Get the previously stored node from `parser.state.stack`
-   */
-
-  get block() {
-    return this.current;
-  }
-
-  get current() {
-    return this.stack.current();
-  }
-
-  get prev() {
-    return this.stack.prev();
-  }
-
-  get lastChild() {
-    return this.stack.lastChild;
-  }
-
-  /**
    * Gets the next token from the lexer, then calls the registered
    * parser handler for `token.type` on the token.
    *
@@ -434,9 +472,45 @@ class Parser extends Emitter {
 
   next() {
     const tok = this.lexer.next();
+    if (!tok) return;
     this.lexer.push(tok);
-    const handler = this.get(tok.type);
-    return this.push(handler.call(this, tok));
+
+    try {
+      const handler = this.get(tok.type);
+      return handler.call(this, tok);
+    } catch (err) {
+      err.name = 'ParserError';
+      this.error(err);
+    }
+  }
+
+  /**
+   * Expect the given type, or throw an exception.
+   *
+   * @param {String} type
+   * @api private
+   */
+
+  expect(type) {
+    const next = this.peek();
+    if (next.type !== type) {
+      throw new Error(`expected "${type}", but got "${next.type}"`);
+    }
+    return this.next();
+  }
+
+  /**
+   * Accept the given `type`.
+   *
+   * @param {String} type
+   * @api private
+   */
+
+  accept(type) {
+    const next = this.peek();
+    if (next.type === type) {
+      return this.next();
+    }
   }
 
   /**
@@ -451,32 +525,39 @@ class Parser extends Emitter {
    * @api public
    */
 
-  parse(input) {
-    if (this.input) {
-      const parser = new this.constructor(this.options);
-      parser.lexer.handlers = this.lexer.handlers;
-      parser.lexer.types = this.lexer.types;
-      parser.handlers = this.handlers;
-      parser.types = this.types;
-      return parser.parse(input);
-    }
+  parse(input, options) {
+    assert.equal(typeof input, 'string', 'expected input to be a string');
+    this.init(input);
+    const bos = this.handlers.get('bos');
+    const eos = this.handlers.get('eos');
 
-    if (typeof input !== 'string') {
-      return this.error(new TypeError('expected input to be a string'));
-    }
-    if (this.types.length === 0) {
-      return this.error(new Error('no parser handlers are registered'));
-    }
+    this.push(bos ? bos.call(this, this.bos) : this.bos);
+    while (!this.lexer.eos()) this.push(this.next());
+    this.push(eos ? eos.call(this, this.eos) : this.eos);
 
-    this.init();
-    this.string = this.input = input;
-
-    this.push(this.bos);
-    while (!this.lexer.eos()) this.next();
-    this.push(this.eos);
-
+    this.emit('parsed', this.ast);
     this.fail();
     return this.ast;
+  }
+
+  /**
+   * Creates a new Parser instance with the given options, and copy
+   * the handlers from the current instance to the new instance.
+   *
+   * @param {Object} `options`
+   * @param {Object} `parent` Optionally pass a different parser instance to copy handlers from.
+   * @return {Object} Returns a new Parser instance
+   * @api public
+   */
+
+  create(options, parent = this) {
+    const parser = new this.constructor(options);
+    parser.lexer.handlers = parent.lexer.handlers;
+    parser.lexer.types = parent.lexer.types;
+    parser.handlers = parent.handlers;
+    parser.types = parent.types;
+    parser.input = '';
+    return parser;
   }
 
   /**
@@ -491,7 +572,6 @@ class Parser extends Emitter {
   concat(node, ast) {
     for (let child of ast.nodes) {
       if (child.type !== 'bos' && child.type !== 'eos') {
-        this.emit('node', child);
         node.push(child);
       }
     }
@@ -499,14 +579,65 @@ class Parser extends Emitter {
   }
 
   /**
+   * Returns true if listeners are registered for even `name`.
+   *
+   * @name .hasListeners
+   * @param {string} `name`
+   * @return {boolean}
+   * @api public
+   */
+
+  hasListeners(name) {
+    return this.listenerCount(name) > 0;
+  }
+
+  /**
+   * Throw a formatted error message with details including the cursor position.
+   *
+   * ```js
+   * parser.set('foo', function(tok) {
+   *   if (tok.value !== 'foo') {
+   *     throw this.error('expected token.value to be "foo"', tok);
+   *   }
+   * });
+   * ```
+   * @name .error
+   * @param {String} `msg` Message to use in the Error.
+   * @param {Object} `node`
+   * @return {undefined}
+   * @api public
+   */
+
+  error(err) {
+    if (typeof err === 'string') {
+      err = new Error(err);
+    }
+    if (this.hasListeners('error')) {
+      this.emit('error', err);
+    } else {
+      throw err;
+    }
+  }
+
+  /**
    * Fail when a closing delimiter is missing.
    */
 
   fail() {
-    let node = this.stack.pop();
+    const node = this.state.pop();
     if (node.type !== 'root') {
       this.error(new SyntaxError(`unclosed: "${node.type}"`));
     }
+  }
+
+  /**
+   * Get the part of the input string has has already been parsed.
+   * @return {String}
+   * @api public
+   */
+
+  get parsed() {
+    return this.lexer.consumed;
   }
 
   /**
@@ -528,24 +659,60 @@ class Parser extends Emitter {
   }
 }
 
-/**
- * Returns true if val is an object
- * @param {any} val
- * @return {Boolean}
- */
+function define(obj, key, value) {
+  Reflect.defineProperty(obj, key, {
+    enumerable: false,
+    configurable: true,
+    writable: true,
+    value: value
+  });
+}
 
-function isObject(val) {
-  return typeOf(val) === 'object';
+function getter(key, parser) {
+  Reflect.defineProperty(parser, key, {
+    get: () => parser.lexer[key]
+  });
+}
+
+function sync(key, parser) {
+  Reflect.defineProperty(parser, key, {
+    set: function(value) {
+      parser.lexer[key] = value;
+    },
+    get: function() {
+      return parser.lexer[key];
+    }
+  });
 }
 
 /**
- * Returns true if val is a RegExp
- * @param {any} val
+ * Returns true if value is a function
+ * @param {any} value
  * @return {Boolean}
  */
 
-function isRegex(val) {
-  return typeOf(val) === 'regexp';
+function isFunction(value) {
+  return typeof value === 'function';
+}
+
+/**
+ * Returns true if value is an object
+ * @param {any} value
+ * @return {Boolean}
+ */
+
+function isObject(value) {
+  return typeOf(value) === 'object';
+}
+
+/**
+ * Returns true if value is a RegExp
+ * @param {any} value
+ * @return {Boolean}
+ */
+
+function isRegex(value) {
+  return typeOf(value) === 'regexp';
 }
 
 /**
