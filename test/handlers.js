@@ -1,16 +1,13 @@
 'use strict';
 
 require('mocha');
-var assert = require('assert');
-var Lexer = require('snapdragon-lexer');
-var Parser = require('..');
-var parser;
-var lexer;
+const assert = require('assert');
+const Parser = require('..');
+let parser;
 
 describe('parser handlers', function() {
   beforeEach(function() {
-    lexer = new Lexer();
-    parser = new Parser({lexer: lexer});
+    parser = new Parser();
   });
 
   describe('handlers', function() {
@@ -33,15 +30,15 @@ describe('parser handlers', function() {
       parser
         .set('text', function() {})
         .set('slash', function() {})
-        .set('dot', function() {})
+        .set('dot', function() {});
 
       assert.strictEqual(parser.handlers.size, 3);
     });
 
     it('should expose named parsers to handler:', function() {
-      var count = 0;
-      lexer.capture('slash', /^\//);
-      lexer.capture('word', /^[a-z]/i);
+      let count = 0;
+      parser.lexer.capture('slash', /^\//);
+      parser.lexer.capture('word', /^[a-z]/i);
 
       parser.set('default', function(tok) {
         count++;
@@ -67,7 +64,11 @@ describe('parser handlers', function() {
   });
 
   describe('brackets', function() {
-    it.skip('should parse brackets', function() {
+    it('should parse brackets', function() {
+      parser.on('node', function(node) {
+        Reflect.defineProperty(node, 'match', { value: node.match, enumerable: false });
+      });
+
       parser.lexer
         .capture('brace.open', /^\{/)
         .capture('text', /^[^{}]+/)
@@ -77,7 +78,7 @@ describe('parser handlers', function() {
         .set('text', (tok) => parser.node(tok))
         .set('brace.close', (tok) => parser.node(tok))
         .set('brace.open', function(tok) {
-          var node = this.node({type: 'brace', nodes: [] });
+          const node = this.node({type: 'brace', nodes: [] });
           node.push(this.node(tok));
           return node;
         });
@@ -87,57 +88,29 @@ describe('parser handlers', function() {
         type: 'root',
         nodes: [
           {
-            type: 'bos'
+            type: 'bos',
+            value: ''
           },
           {
             type: 'brace',
             nodes: [
               {
                 type: 'brace.open',
-                val: '{',
-                position: {
-                  start: {
-                    line: 1,
-                    column: 1
-                  },
-                  end: {
-                    line: 1,
-                    column: 2
-                  }
-                }
+                value: '{'
               },
               {
                 type: 'text',
-                val: 'a,b',
-                position: {
-                  start: {
-                    line: 1,
-                    column: 2
-                  },
-                  end: {
-                    line: 1,
-                    column: 5
-                  }
-                }
+                value: 'a,b'
               },
               {
                 type: 'brace.close',
-                val: '}',
-                position: {
-                  start: {
-                    line: 1,
-                    column: 5
-                  },
-                  end: {
-                    line: 1,
-                    column: 6
-                  }
-                }
+                value: '}'
               }
             ]
           },
           {
-            type: 'eos'
+            type: 'eos',
+            value: ''
           }
         ]
       });

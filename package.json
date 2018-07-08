@@ -1,6 +1,6 @@
 {
   "name": "snapdragon-parser",
-  "description": "The snapdragon parser as a standalone library.",
+  "description": "Easily parse a string to create an AST.",
   "version": "0.1.0",
   "homepage": "https://github.com/here-be/snapdragon-parser",
   "author": "Jon Schlinkert (https://github.com/jonschlinkert)",
@@ -15,19 +15,19 @@
   ],
   "main": "index.js",
   "engines": {
-    "node": ">=4"
+    "node": ">=8"
   },
   "scripts": {
     "test": "nyc mocha"
   },
   "dependencies": {
-    "snapdragon-lexer": "file:../lexer",
-    "snapdragon-node": "file:../node"
+    "snapdragon-lexer": "^4.0.0",
+    "snapdragon-node": "^3.0.0"
   },
   "devDependencies": {
-    "gulp-format-md": "^1.0.0",
-    "mocha": "^3.5.3",
-    "nyc": "^11.7.1"
+    "gulp-format-md": "^2.0.0",
+    "mocha": "^5.2.0",
+    "nyc": "^13.1.0"
   },
   "keywords": [
     "compile",
@@ -54,9 +54,9 @@
     "related": {
       "list": [
         "snapdragon-lexer",
-        "snapdragon-token",
         "snapdragon-node",
-        "snapdragon-position"
+        "snapdragon-position",
+        "snapdragon-token"
       ]
     },
     "plugins": [

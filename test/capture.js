@@ -1,11 +1,9 @@
 'use strict';
 
 require('mocha');
-var assert = require('assert');
-var Lexer = require('snapdragon-lexer');
-var Parser = require('..');
-var parser;
-var lexer;
+const assert = require('assert');
+const Parser = require('..');
+let parser;
 
 describe('parser.capture()', function() {
   beforeEach(function() {

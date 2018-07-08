@@ -17,7 +17,7 @@ describe('parser.push()', function() {
       .capture('bracket.close', /^\]/)
       .capture('bracket.open', /^\[/, function(open) {
         return this.node({type: 'bracket', nodes: [open]});
-      })
+      });
   });
 
   it('should do nothing when the value is undefined', function() {

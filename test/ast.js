@@ -1,11 +1,11 @@
 'use strict';
 
 require('mocha');
-var assert = require('assert');
-var Lexer = require('snapdragon-lexer');
-var Parser = require('..');
-var parser;
-var lexer;
+const assert = require('assert');
+const Lexer = require('snapdragon-lexer');
+const Parser = require('..');
+let parser;
+let lexer;
 
 describe('parser.ast', function() {
   beforeEach(function() {
@@ -19,7 +19,7 @@ describe('parser.ast', function() {
         return this.node(tok);
       });
 
-      var ast = parser.parse('a/b');
+      let ast = parser.parse('a/b');
       assert.equal(ast.nodes[0].type, 'bos');
     });
   });
@@ -30,7 +30,7 @@ describe('parser.ast', function() {
         return this.node(tok);
       });
 
-      var ast = parser.parse('a/b');
+      let ast = parser.parse('a/b');
       assert.equal(ast.nodes[ast.nodes.length - 1].type, 'eos');
     });
   });

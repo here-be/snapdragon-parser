@@ -2,21 +2,16 @@
 
 require('mocha');
 const assert = require('assert');
-const Lexer = require('snapdragon-lexer');
 const Parser = require('..');
-let lexer;
 let parser;
 
 describe('parser.parse()', function() {
   beforeEach(function() {
-    lexer = new Lexer();
-    parser = new Parser({lexer: lexer});
+    parser = new Parser();
   });
 
   it('should throw when invalid args are passed to parse', function() {
-    assert.throws(function() {
-      parser.parse();
-    }, /expected/i);
+    assert.throws(() => parser.parse(), /expected/i);
   });
 
   it('should add unparsed original string to parser.input', function() {
@@ -52,10 +47,10 @@ describe('parser.parse()', function() {
   });
 
   it('should throw an error when a closing delimiter is missing', function() {
-    lexer
+    parser.lexer
       .capture('brace.open', /^\{/)
       .capture('text', /^[^{}]+/)
-      .capture('rbrace', /^\}/)
+      .capture('rbrace', /^\}/);
 
     parser
       .capture('text', (tok) => parser.node(tok))
@@ -66,27 +61,25 @@ describe('parser.parse()', function() {
       })
       .capture('rbrace', function(tok) {
         return parser.node(tok);
-      })
+      });
 
-    assert.throws(function() {
-      parser.parse('{a,b}');
-    }, /unclosed/);
+    assert.throws(() => parser.parse('{a,b}'), /unclosed/);
   });
 
   it('should close when node.isClose matches a node', function() {
     parser
       .capture('text', /^[^{}]+/)
-      .capture('lbrace', /^\{/, function(tok) {
+      .capture('lbrace', /^\{/, function(node) {
         return {
           type: 'brace',
-          isClose: node => node.type = 'rbrace',
-          nodes: [tok]
+          nodes: [node],
+          isOpen: node => node.type === 'lbrace',
+          isClose: node => node.type === 'rbrace'
         };
       })
       .capture('rbrace', /^\}/);
 
-    assert.doesNotThrow(function() {
-      parser.parse('{a,b}');
-    });
+    assert.doesNotThrow(() => parser.parse('{a,b,c}'));
+    assert.doesNotThrow(() => parser.parse('{a,b}'));
   });
 });

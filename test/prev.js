@@ -14,7 +14,7 @@ describe('parser.prev()', function() {
     assert.equal(parser.prev().type, 'root');
   });
 
-  it('should get the last node from the stack', function() {
+  it('should get the prev node from the stack', function() {
     parser.push(parser.node({type: 'brace', nodes: [parser.node('brace.open', '{')]}));
     assert.equal(parser.prev().type, 'brace');
   });
