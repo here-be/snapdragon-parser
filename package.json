@@ -1,23 +1,33 @@
 {
   "name": "snapdragon-parser",
-  "description": "The snapdragon parser as a standalone library.",
+  "description": "Easily parse a string to create an AST.",
   "version": "0.1.0",
-  "homepage": "https://github.com/jonschlinkert/snapdragon-parser",
+  "homepage": "https://github.com/here-be/snapdragon-parser",
   "author": "Jon Schlinkert (https://github.com/jonschlinkert)",
-  "repository": "jonschlinkert/snapdragon-parser",
+  "repository": "here-be/snapdragon-parser",
   "bugs": {
-    "url": "https://github.com/jonschlinkert/snapdragon-parser/issues"
+    "url": "https://github.com/here-be/snapdragon-parser/issues"
   },
   "license": "MIT",
   "files": [
-    "index.js"
+    "index.js",
+    "lib"
   ],
   "main": "index.js",
   "engines": {
-    "node": ">=4"
+    "node": ">=8"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "nyc mocha"
+  },
+  "dependencies": {
+    "snapdragon-lexer": "^4.0.0",
+    "snapdragon-node": "^3.0.0"
+  },
+  "devDependencies": {
+    "gulp-format-md": "^2.0.0",
+    "mocha": "^5.2.0",
+    "nyc": "^13.1.0"
   },
   "keywords": [
     "compile",
@@ -29,21 +39,31 @@
     "snapdragon",
     "transform"
   ],
-  "dependencies": {
-    "@sellside/emitter": "file:/usr/local/lib/node_modules/@sellside/emitter",
-    "define-property": "^1.0.0",
-    "export-files": "^2.1.1",
-    "get-value": "^2.0.6",
-    "kind-of": "^6.0.1",
-    "snapdragon-lexer": "file:/usr/local/lib/node_modules/snapdragon-lexer",
-    "snapdragon-node": "file:/usr/local/lib/node_modules/snapdragon-node",
-    "snapdragon-show": "file:/usr/local/lib/node_modules/snapdragon-show",
-    "snapdragon-stack": "file:/usr/local/lib/node_modules/snapdragon-stack",
-    "snapdragon-util": "file:/usr/local/lib/node_modules/snapdragon-util",
-    "union-value": "^1.0.0",
-    "use": "^3.0.0"
+  "nyc": {
+    "reporter": [
+      "lcov",
+      "text-summary"
+    ]
   },
-  "devDependencies": {
-    "mocha": "^4.0.1"
+  "verb": {
+    "toc": "collapsible",
+    "layout": "default",
+    "tasks": [
+      "readme"
+    ],
+    "related": {
+      "list": [
+        "snapdragon-lexer",
+        "snapdragon-node",
+        "snapdragon-position",
+        "snapdragon-token"
+      ]
+    },
+    "plugins": [
+      "gulp-format-md"
+    ],
+    "lint": {
+      "reflinks": true
+    }
   }
 }
