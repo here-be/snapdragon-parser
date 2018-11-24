@@ -1,7 +1,7 @@
 {
   "name": "snapdragon-parser",
   "description": "Easily parse a string to create an AST.",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "homepage": "https://github.com/here-be/snapdragon-parser",
   "author": "Jon Schlinkert (https://github.com/jonschlinkert)",
   "repository": "here-be/snapdragon-parser",
